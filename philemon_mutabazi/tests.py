@@ -89,6 +89,7 @@ class PasswordAndProfileTests(TestCase):
             password="StrongPass123!",
         )
         self.client.login(username="profileuser", password="StrongPass123!")
+        self.profile_url = reverse("philemon_mutabazi:profile_detail", kwargs={"username": "profileuser"})
 
     def test_password_change(self):
         response = self.client.post(
@@ -101,9 +102,14 @@ class PasswordAndProfileTests(TestCase):
         )
         self.assertEqual(response.status_code, 302)
 
+    def test_profile_detail_allows_owner_to_view(self):
+        response = self.client.get(self.profile_url)
+        self.assertEqual(response.status_code, 200)
+        self.assertContains(response, "profileuser")
+
     def test_profile_update(self):
         response = self.client.post(
-            reverse("philemon_mutabazi:profile"),
+            self.profile_url,
             {
                 "username": "profileuser",
                 "email": "updated@example.com",
@@ -115,6 +121,25 @@ class PasswordAndProfileTests(TestCase):
         self.user.refresh_from_db()
         self.assertEqual(self.user.email, "updated@example.com")
         self.assertTrue(Profile.objects.filter(user=self.user).exists())
+
+    def test_profile_update_denies_cross_user_access(self):
+        other_user = User.objects.create_user(
+            username="otheruser",
+            email="other@example.com",
+            password="StrongPass123!",
+        )
+        response = self.client.post(
+            reverse("philemon_mutabazi:profile_detail", kwargs={"username": other_user.username}),
+            {
+                "username": other_user.username,
+                "email": "attempted-change@example.com",
+                "bio": "Attempted change",
+                "date_of_birth": "1998-12-31",
+            },
+        )
+        self.assertEqual(response.status_code, 404)
+        other_user.refresh_from_db()
+        self.assertEqual(other_user.email, "other@example.com")
 
 
 class RoleBasedAccessTests(TestCase):
@@ -157,6 +182,13 @@ class RoleBasedAccessTests(TestCase):
     def test_privileged_route_allows_instructor_group_user(self):
         self.client.login(username="instructor", password="StrongPass123!")
         response = self.client.get(self.privileged_url)
+        self.assertEqual(response.status_code, 200)
+
+    def test_privileged_user_can_view_other_user_profile(self):
+        self.client.login(username="staffuser", password="StrongPass123!")
+        response = self.client.get(
+            reverse("philemon_mutabazi:profile_detail", kwargs={"username": "normal"}),
+        )
         self.assertEqual(response.status_code, 200)
 
     def test_template_hides_privileged_link_for_normal_user(self):

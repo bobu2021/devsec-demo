@@ -3,10 +3,13 @@ from django.contrib.auth import logout
 from django.contrib.auth.decorators import login_required
 from django.contrib.auth.mixins import LoginRequiredMixin, UserPassesTestMixin
 from django.contrib.auth.views import LoginView, PasswordChangeView
-from django.shortcuts import redirect, render
+from django.http import Http404
+from django.shortcuts import get_object_or_404, redirect, render
 from django.urls import reverse_lazy
 from django.views import View
 from django.utils.decorators import method_decorator
+
+from django.contrib.auth.models import User
 
 from .forms import (
     ProfileUpdateForm,
@@ -71,6 +74,13 @@ class PrivilegedAccessMixin(LoginRequiredMixin, UserPassesTestMixin):
         return super().handle_no_permission()
 
 
+def can_access_profile(request_user, target_user):
+    return bool(
+        request_user.is_authenticated
+        and (request_user == target_user or user_is_privileged(request_user))
+    )
+
+
 @login_required
 def logout_view(request):
     if request.method == "POST":
@@ -89,29 +99,47 @@ class DashboardView(View):
 
 
 @method_decorator(login_required, name="dispatch")
-class ProfileView(View):
+class ProfileRedirectView(View):
+    def get(self, request):
+        return redirect("philemon_mutabazi:profile_detail", username=request.user.username)
+
+
+@method_decorator(login_required, name="dispatch")
+class ProfileDetailView(View):
     template_name = "philemon_mutabazi/profile.html"
 
-    def get(self, request):
-        user_form = UserUpdateForm(instance=request.user)
-        profile_form = ProfileUpdateForm(instance=request.user.philemon_profile)
+    def get_target_user(self, username):
+        target_user = get_object_or_404(User, username=username)
+        if not can_access_profile(self.request.user, target_user):
+            raise Http404
+        return target_user
+
+    def get(self, request, username):
+        target_user = self.get_target_user(username)
+        user_form = UserUpdateForm(instance=target_user)
+        profile_form = ProfileUpdateForm(instance=target_user.philemon_profile)
         context = {
             "user_form": user_form,
             "profile_form": profile_form,
+            "target_user": target_user,
+            "can_edit": target_user == request.user or user_is_privileged(request.user),
         }
         return render(request, self.template_name, context)
 
-    def post(self, request):
-        user_form = UserUpdateForm(request.POST, instance=request.user)
-        profile_form = ProfileUpdateForm(request.POST, instance=request.user.philemon_profile)
+    def post(self, request, username):
+        target_user = self.get_target_user(username)
+        user_form = UserUpdateForm(request.POST, instance=target_user)
+        profile_form = ProfileUpdateForm(request.POST, instance=target_user.philemon_profile)
         if user_form.is_valid() and profile_form.is_valid():
             user_form.save()
             profile_form.save()
             messages.success(request, "Your profile has been updated.")
-            return redirect("philemon_mutabazi:profile")
+            return redirect("philemon_mutabazi:profile_detail", username=target_user.username)
         context = {
             "user_form": user_form,
             "profile_form": profile_form,
+            "target_user": target_user,
+            "can_edit": target_user == request.user or user_is_privileged(request.user),
         }
         return render(request, self.template_name, context)
 

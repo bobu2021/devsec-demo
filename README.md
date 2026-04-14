@@ -90,6 +90,15 @@ start work on your submission.
   - anonymous users are redirected to login
   - authenticated non-privileged users are redirected to dashboard with an error message
 
+### IDOR protection
+
+- Profile access now uses `/philemon/profile/<username>/` and checks the
+  requested object explicitly.
+- A user can access only their own profile unless they are privileged.
+- Attempts to view or modify another user's profile return a safe 404.
+- The old assumption that login alone was enough for account-management access
+  has been removed.
+
 ### Tests
 
 Run UAS tests:

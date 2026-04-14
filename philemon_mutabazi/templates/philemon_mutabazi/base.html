@@ -25,7 +25,7 @@
     <nav class="nav">
         {% if user.is_authenticated %}
             <a href="{% url 'philemon_mutabazi:dashboard' %}">Dashboard</a>
-            <a href="{% url 'philemon_mutabazi:profile' %}">Profile</a>
+            <a href="{% url 'philemon_mutabazi:profile_detail' user.username %}">Profile</a>
             <a href="{% url 'philemon_mutabazi:password_change' %}">Password Change</a>
             {% if user.is_staff or user.is_superuser %}
                 <a href="{% url 'philemon_mutabazi:privileged_dashboard' %}">Privileged Area</a>
