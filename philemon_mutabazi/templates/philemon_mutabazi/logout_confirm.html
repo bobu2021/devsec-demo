@@ -1,0 +1,11 @@
+{% extends "philemon_mutabazi/base.html" %}
+
+{% block title %}Logout{% endblock %}
+
+{% block content %}
+<h1>Confirm logout</h1>
+<form method="post">
+    {% csrf_token %}
+    <button class="btn" type="submit">Confirm logout</button>
+</form>
+{% endblock %}

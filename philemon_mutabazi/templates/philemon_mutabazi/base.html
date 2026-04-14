@@ -1,0 +1,50 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>{% block title %}UAS{% endblock %}</title>
+    <style>
+        body { font-family: Arial, sans-serif; margin: 0; background: #f7f7f7; }
+        .nav { background: #1f2937; padding: 12px 20px; display: flex; gap: 12px; }
+        .nav a, .nav button { color: #fff; text-decoration: none; background: none; border: none; cursor: pointer; font: inherit; }
+        .container { max-width: 760px; margin: 24px auto; background: #fff; padding: 20px; border-radius: 8px; }
+        .messages { list-style: none; padding: 0; }
+        .messages li { padding: 10px; margin-bottom: 8px; border-radius: 4px; }
+        .success { background: #dcfce7; }
+        .info { background: #dbeafe; }
+        .error { background: #fee2e2; }
+        .form-row { margin-bottom: 12px; }
+        label { display: block; margin-bottom: 4px; }
+        input, textarea { width: 100%; padding: 8px; }
+        .btn { padding: 8px 14px; }
+        .errorlist { color: #b91c1c; }
+    </style>
+</head>
+<body>
+    <nav class="nav">
+        {% if user.is_authenticated %}
+            <a href="{% url 'philemon_mutabazi:dashboard' %}">Dashboard</a>
+            <a href="{% url 'philemon_mutabazi:profile' %}">Profile</a>
+            <a href="{% url 'philemon_mutabazi:password_change' %}">Password Change</a>
+            <form method="post" action="{% url 'philemon_mutabazi:logout' %}">
+                {% csrf_token %}
+                <button type="submit">Logout</button>
+            </form>
+        {% else %}
+            <a href="{% url 'philemon_mutabazi:login' %}">Login</a>
+            <a href="{% url 'philemon_mutabazi:register' %}">Register</a>
+        {% endif %}
+    </nav>
+    <main class="container">
+        {% if messages %}
+            <ul class="messages">
+                {% for message in messages %}
+                    <li class="{{ message.tags }}">{{ message }}</li>
+                {% endfor %}
+            </ul>
+        {% endif %}
+        {% block content %}{% endblock %}
+    </main>
+</body>
+</html>

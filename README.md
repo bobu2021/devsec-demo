@@ -1,5 +1,4 @@
 # devsec-demo
-
 ## Django security learning repository
 
 This repository is used for Django and web security assignments. You will work
@@ -57,3 +56,31 @@ You must be able to explain:
 
 Read [docs/ai-authorship-policy.md](docs/ai-authorship-policy.md) before you
 start work on your submission.
+
+## User Authentication Service (philemon_mutabazi)
+
+### Setup
+
+1. Install dependencies:
+  pip install -r requirements.txt
+2. Configure environment variables in `.env`:
+  DJANGO_SECRET_KEY=replace-with-a-secret-key
+  DJANGO_DEBUG=True
+3. Apply migrations:
+  python manage.py migrate
+4. Run server:
+  python manage.py runserver
+
+### Authentication URLs
+
+- /philemon/register/
+- /philemon/login/
+- /philemon/logout/
+- /philemon/dashboard/
+- /philemon/profile/
+- /philemon/password-change/
+
+### Tests
+
+Run UAS tests:
+python manage.py test philemon_mutabazi -v 2

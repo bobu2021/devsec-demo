@@ -1,0 +1,19 @@
+{% extends "philemon_mutabazi/base.html" %}
+
+{% block title %}Login{% endblock %}
+
+{% block content %}
+<h1>Login</h1>
+<form method="post">
+    {% csrf_token %}
+    {% for field in form %}
+        <div class="form-row">
+            <label for="{{ field.id_for_label }}">{{ field.label }}</label>
+            {{ field }}
+            {{ field.errors }}
+        </div>
+    {% endfor %}
+    {{ form.non_field_errors }}
+    <button class="btn" type="submit">Sign in</button>
+</form>
+{% endblock %}
