@@ -1,6 +1,7 @@
 from django.contrib import messages
 from django.contrib.auth import logout
 from django.contrib.auth.decorators import login_required
+from django.contrib.auth.mixins import LoginRequiredMixin, UserPassesTestMixin
 from django.contrib.auth.views import LoginView, PasswordChangeView
 from django.shortcuts import redirect, render
 from django.urls import reverse_lazy
@@ -43,6 +44,31 @@ class UserLoginView(LoginView):
 
     def get_success_url(self):
         return reverse_lazy("philemon_mutabazi:dashboard")
+
+
+def user_is_privileged(user):
+    return bool(
+        user.is_authenticated
+        and (
+            user.is_staff
+            or user.is_superuser
+            or user.groups.filter(name="instructors").exists()
+        )
+    )
+
+
+class PrivilegedAccessMixin(LoginRequiredMixin, UserPassesTestMixin):
+    def test_func(self):
+        return user_is_privileged(self.request.user)
+
+    def handle_no_permission(self):
+        if self.request.user.is_authenticated:
+            messages.error(
+                self.request,
+                "You do not have permission to access that page.",
+            )
+            return redirect("philemon_mutabazi:dashboard")
+        return super().handle_no_permission()
 
 
 @login_required
@@ -99,3 +125,10 @@ class UserPasswordChangeView(PasswordChangeView):
     def form_valid(self, form):
         messages.success(self.request, "Your password was changed successfully.")
         return super().form_valid(form)
+
+
+class PrivilegedDashboardView(PrivilegedAccessMixin, View):
+    template_name = "philemon_mutabazi/privileged_dashboard.html"
+
+    def get(self, request):
+        return render(request, self.template_name)

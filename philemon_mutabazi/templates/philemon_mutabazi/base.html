@@ -27,6 +27,9 @@
             <a href="{% url 'philemon_mutabazi:dashboard' %}">Dashboard</a>
             <a href="{% url 'philemon_mutabazi:profile' %}">Profile</a>
             <a href="{% url 'philemon_mutabazi:password_change' %}">Password Change</a>
+            {% if user.is_staff or user.is_superuser %}
+                <a href="{% url 'philemon_mutabazi:privileged_dashboard' %}">Privileged Area</a>
+            {% endif %}
             <form method="post" action="{% url 'philemon_mutabazi:logout' %}">
                 {% csrf_token %}
                 <button type="submit">Logout</button>

@@ -80,6 +80,16 @@ start work on your submission.
 - /philemon/profile/
 - /philemon/password-change/
 
+### Authorization model
+
+- Anonymous users can only access login and registration routes.
+- Authenticated users can access dashboard, profile, password change, and logout.
+- Privileged users can access /philemon/privileged/.
+  - Privileged means is_staff, is_superuser, or member of the instructors group.
+- Unauthorized privileged-area access is handled safely:
+  - anonymous users are redirected to login
+  - authenticated non-privileged users are redirected to dashboard with an error message
+
 ### Tests
 
 Run UAS tests:

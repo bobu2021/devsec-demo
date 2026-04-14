@@ -1,4 +1,4 @@
-from django.contrib.auth.models import User
+from django.contrib.auth.models import Group, User
 from django.test import Client, TestCase
 from django.urls import reverse
 
@@ -115,3 +115,56 @@ class PasswordAndProfileTests(TestCase):
         self.user.refresh_from_db()
         self.assertEqual(self.user.email, "updated@example.com")
         self.assertTrue(Profile.objects.filter(user=self.user).exists())
+
+
+class RoleBasedAccessTests(TestCase):
+    def setUp(self):
+        self.client = Client()
+        self.privileged_url = reverse("philemon_mutabazi:privileged_dashboard")
+        self.normal_user = User.objects.create_user(
+            username="normal",
+            password="StrongPass123!",
+        )
+        self.staff_user = User.objects.create_user(
+            username="staffuser",
+            password="StrongPass123!",
+            is_staff=True,
+        )
+        self.instructor_user = User.objects.create_user(
+            username="instructor",
+            password="StrongPass123!",
+        )
+        instructors = Group.objects.create(name="instructors")
+        self.instructor_user.groups.add(instructors)
+
+    def test_privileged_route_redirects_anonymous_user_to_login(self):
+        response = self.client.get(self.privileged_url)
+        self.assertEqual(response.status_code, 302)
+        self.assertIn(reverse("philemon_mutabazi:login"), response.url)
+
+    def test_privileged_route_denies_normal_authenticated_user(self):
+        self.client.login(username="normal", password="StrongPass123!")
+        response = self.client.get(self.privileged_url)
+        self.assertEqual(response.status_code, 302)
+        self.assertEqual(response.url, reverse("philemon_mutabazi:dashboard"))
+
+    def test_privileged_route_allows_staff_user(self):
+        self.client.login(username="staffuser", password="StrongPass123!")
+        response = self.client.get(self.privileged_url)
+        self.assertEqual(response.status_code, 200)
+        self.assertContains(response, "Privileged Area")
+
+    def test_privileged_route_allows_instructor_group_user(self):
+        self.client.login(username="instructor", password="StrongPass123!")
+        response = self.client.get(self.privileged_url)
+        self.assertEqual(response.status_code, 200)
+
+    def test_template_hides_privileged_link_for_normal_user(self):
+        self.client.login(username="normal", password="StrongPass123!")
+        response = self.client.get(reverse("philemon_mutabazi:dashboard"))
+        self.assertNotContains(response, "Privileged Area")
+
+    def test_template_shows_privileged_link_for_staff_user(self):
+        self.client.login(username="staffuser", password="StrongPass123!")
+        response = self.client.get(reverse("philemon_mutabazi:dashboard"))
+        self.assertContains(response, "Privileged Area")
