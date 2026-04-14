@@ -6,4 +6,4 @@ class PhilemonMutabaziConfig(AppConfig):
     name = "philemon_mutabazi"
 
     def ready(self):
-        import philemon_mutabazi.signals
+        import philemon_mutabazi.signals  # noqa: F401
