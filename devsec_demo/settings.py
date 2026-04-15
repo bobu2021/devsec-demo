@@ -133,3 +133,19 @@ DEFAULT_AUTO_FIELD = 'django.db.models.BigAutoField'
 LOGIN_URL = 'philemon_mutabazi:login'
 LOGIN_REDIRECT_URL = 'philemon_mutabazi:dashboard'
 LOGOUT_REDIRECT_URL = 'philemon_mutabazi:login'
+
+# Email configuration for password reset
+# Uses console backend for development; configure SMTP for production
+EMAIL_BACKEND = os.environ.get(
+    'EMAIL_BACKEND',
+    'django.core.mail.backends.console.EmailBackend'
+)
+EMAIL_HOST = os.environ.get('EMAIL_HOST', 'localhost')
+EMAIL_PORT = int(os.environ.get('EMAIL_PORT', 587))
+EMAIL_USE_TLS = os.environ.get('EMAIL_USE_TLS', 'True').lower() in ('1', 'true', 'yes', 'on')
+EMAIL_HOST_USER = os.environ.get('EMAIL_HOST_USER', '')
+EMAIL_HOST_PASSWORD = os.environ.get('EMAIL_HOST_PASSWORD', '')
+DEFAULT_FROM_EMAIL = os.environ.get('DEFAULT_FROM_EMAIL', 'noreply@uas.local')
+
+# Password reset token lifetime (hours)
+PASSWORD_RESET_TIMEOUT = 3600  # 1 hour for secure reset tokens

@@ -2,7 +2,14 @@ from django.contrib import messages
 from django.contrib.auth import logout
 from django.contrib.auth.decorators import login_required
 from django.contrib.auth.mixins import LoginRequiredMixin, UserPassesTestMixin
-from django.contrib.auth.views import LoginView, PasswordChangeView
+from django.contrib.auth.views import (
+    LoginView,
+    PasswordChangeView,
+    PasswordResetView,
+    PasswordResetDoneView,
+    PasswordResetConfirmView,
+    PasswordResetCompleteView,
+)
 from django.http import Http404
 from django.shortcuts import get_object_or_404, redirect, render
 from django.urls import reverse_lazy
@@ -15,6 +22,8 @@ from .forms import (
     ProfileUpdateForm,
     UserLoginForm,
     UserPasswordChangeForm,
+    UserPasswordResetForm,
+    UserSetPasswordForm,
     UserRegistrationForm,
     UserUpdateForm,
 )
@@ -161,3 +170,42 @@ class PrivilegedDashboardView(PrivilegedAccessMixin, View):
 
     def get(self, request):
         return render(request, self.template_name)
+
+
+class UserPasswordResetView(PasswordResetView):
+    """Secure password reset request view using Django's token system."""
+    template_name = "philemon_mutabazi/password_reset_form.html"
+    form_class = UserPasswordResetForm
+    email_template_name = "philemon_mutabazi/password_reset_email.html"
+    subject_template_name = "philemon_mutabazi/password_reset_subject.txt"
+    success_url = reverse_lazy("philemon_mutabazi:password_reset_done")
+
+    def get(self, request, *args, **kwargs):
+        # Redirect authenticated users to their profile
+        if request.user.is_authenticated:
+            return redirect("philemon_mutabazi:profile")
+        return super().get(request, *args, **kwargs)
+
+
+class UserPasswordResetDoneView(PasswordResetDoneView):
+    """Confirmation view after password reset request."""
+    template_name = "philemon_mutabazi/password_reset_done.html"
+
+
+class UserPasswordResetConfirmView(PasswordResetConfirmView):
+    """View for setting a new password using reset token."""
+    template_name = "philemon_mutabazi/password_reset_confirm.html"
+    form_class = UserSetPasswordForm
+    success_url = reverse_lazy("philemon_mutabazi:password_reset_complete")
+
+    def form_valid(self, form):
+        messages.success(
+            self.request,
+            "Your password has been reset successfully. You can now log in with your new password."
+        )
+        return super().form_valid(form)
+
+
+class UserPasswordResetCompleteView(PasswordResetCompleteView):
+    """Final success view after password reset."""
+    template_name = "philemon_mutabazi/password_reset_complete.html"
