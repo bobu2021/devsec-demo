@@ -125,17 +125,12 @@ USE_TZ = True
 
 STATIC_URL = 'static/'
 
-# Default primary key field type
-# https://docs.djangoproject.com/en/6.0/ref/settings/#default-auto-field
-
 DEFAULT_AUTO_FIELD = 'django.db.models.BigAutoField'
 
 LOGIN_URL = 'philemon_mutabazi:login'
 LOGIN_REDIRECT_URL = 'philemon_mutabazi:dashboard'
 LOGOUT_REDIRECT_URL = 'philemon_mutabazi:login'
 
-# Email configuration for password reset
-# Uses console backend for development; configure SMTP for production
 EMAIL_BACKEND = os.environ.get(
     'EMAIL_BACKEND',
     'django.core.mail.backends.console.EmailBackend'
@@ -147,5 +142,8 @@ EMAIL_HOST_USER = os.environ.get('EMAIL_HOST_USER', '')
 EMAIL_HOST_PASSWORD = os.environ.get('EMAIL_HOST_PASSWORD', '')
 DEFAULT_FROM_EMAIL = os.environ.get('DEFAULT_FROM_EMAIL', 'noreply@uas.local')
 
-# Password reset token lifetime (hours)
-PASSWORD_RESET_TIMEOUT = 3600  # 1 hour for secure reset tokens
+PASSWORD_RESET_TIMEOUT = 3600
+
+# Brute-force protection settings for login attempts.
+LOGIN_MAX_ATTEMPTS = int(os.environ.get('LOGIN_MAX_ATTEMPTS', 5))
+LOGIN_LOCKOUT_SECONDS = int(os.environ.get('LOGIN_LOCKOUT_SECONDS', 300))

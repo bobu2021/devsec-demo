@@ -1,5 +1,7 @@
 from django.contrib.auth.models import Group, User
+from django.core.cache import cache
 from django.test import Client, TestCase
+from django.test.utils import override_settings
 from django.urls import reverse
 
 from .models import Profile
@@ -309,3 +311,76 @@ class PasswordResetTests(TestCase):
         self.assertEqual(response.status_code, 200)
         self.assertContains(response, "Password Reset Complete")
         self.assertContains(response, "log in with your new password")
+
+
+@override_settings(LOGIN_MAX_ATTEMPTS=3, LOGIN_LOCKOUT_SECONDS=300)
+class LoginBruteForceProtectionTests(TestCase):
+    def setUp(self):
+        cache.clear()
+        self.client = Client()
+        self.user = User.objects.create_user(
+            username="bruteforceuser",
+            email="bf@example.com",
+            password="StrongPass123!",
+        )
+        self.login_url = reverse("philemon_mutabazi:login")
+
+    def test_normal_login_still_works(self):
+        response = self.client.post(
+            self.login_url,
+            {
+                "username": "bruteforceuser",
+                "password": "StrongPass123!",
+            },
+        )
+        self.assertEqual(response.status_code, 302)
+
+    def test_repeated_failed_attempts_trigger_lockout(self):
+        for _ in range(3):
+            response = self.client.post(
+                self.login_url,
+                {
+                    "username": "bruteforceuser",
+                    "password": "WrongPass123!",
+                },
+            )
+            self.assertEqual(response.status_code, 200)
+
+        blocked_response = self.client.post(
+            self.login_url,
+            {
+                "username": "bruteforceuser",
+                "password": "StrongPass123!",
+            },
+        )
+        self.assertEqual(blocked_response.status_code, 200)
+        self.assertContains(blocked_response, "Too many failed login attempts")
+
+    def test_successful_login_resets_failed_attempt_counter(self):
+        self.client.post(
+            self.login_url,
+            {
+                "username": "bruteforceuser",
+                "password": "WrongPass123!",
+            },
+        )
+
+        success = self.client.post(
+            self.login_url,
+            {
+                "username": "bruteforceuser",
+                "password": "StrongPass123!",
+            },
+        )
+        self.assertEqual(success.status_code, 302)
+
+        self.client.logout()
+        response = self.client.post(
+            self.login_url,
+            {
+                "username": "bruteforceuser",
+                "password": "WrongPass123!",
+            },
+        )
+        self.assertEqual(response.status_code, 200)
+        self.assertNotContains(response, "Too many failed login attempts")

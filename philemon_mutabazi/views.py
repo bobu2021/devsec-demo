@@ -10,8 +10,10 @@ from django.contrib.auth.views import (
     PasswordResetConfirmView,
     PasswordResetCompleteView,
 )
+from django.core.cache import cache
 from django.http import Http404
 from django.shortcuts import get_object_or_404, redirect, render
+from django.conf import settings
 from django.urls import reverse_lazy
 from django.views import View
 from django.utils.decorators import method_decorator
@@ -53,6 +55,57 @@ class UserLoginView(LoginView):
     template_name = "philemon_mutabazi/login.html"
     authentication_form = UserLoginForm
     redirect_authenticated_user = True
+
+    def _normalize_username(self):
+        return (self.request.POST.get("username") or "").strip().lower()
+
+    def _attempt_key(self, username):
+        return f"login_attempts:{username}"
+
+    def _lock_key(self, username):
+        return f"login_lock:{username}"
+
+    def _is_locked(self, username):
+        if not username:
+            return False
+        return bool(cache.get(self._lock_key(username)))
+
+    def _record_failed_attempt(self, username):
+        if not username:
+            return
+
+        attempt_key = self._attempt_key(username)
+        lock_key = self._lock_key(username)
+        attempts = cache.get(attempt_key, 0) + 1
+        cache.set(attempt_key, attempts, timeout=settings.LOGIN_LOCKOUT_SECONDS)
+
+        if attempts >= settings.LOGIN_MAX_ATTEMPTS:
+            cache.set(lock_key, True, timeout=settings.LOGIN_LOCKOUT_SECONDS)
+
+    def _reset_login_protection(self, username):
+        if not username:
+            return
+        cache.delete(self._attempt_key(username))
+        cache.delete(self._lock_key(username))
+
+    def post(self, request, *args, **kwargs):
+        username = self._normalize_username()
+        if self._is_locked(username):
+            form = self.get_form()
+            form.add_error(
+                None,
+                "Too many failed login attempts. Please wait and try again.",
+            )
+            return self.form_invalid(form)
+        return super().post(request, *args, **kwargs)
+
+    def form_invalid(self, form):
+        self._record_failed_attempt(self._normalize_username())
+        return super().form_invalid(form)
+
+    def form_valid(self, form):
+        self._reset_login_protection(self._normalize_username())
+        return super().form_valid(form)
 
     def get_success_url(self):
         return reverse_lazy("philemon_mutabazi:dashboard")

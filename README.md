@@ -90,6 +90,16 @@ start work on your submission.
   - anonymous users are redirected to login
   - authenticated non-privileged users are redirected to dashboard with an error message
 
+### Brute-force login protection
+
+- Login flow includes username-based throttling to resist repeated credential guessing.
+- After a configurable number of failed attempts (`LOGIN_MAX_ATTEMPTS`, default 5),
+  the account login is temporarily blocked for `LOGIN_LOCKOUT_SECONDS` (default 300).
+- During lockout, the login form shows a generic protective response and denies attempts,
+  including correct credentials, until cooldown expires.
+- On successful login, cached failed-attempt state is cleared for better usability.
+- This design intentionally favors a simple, auditable mitigation over complex adaptive logic.
+
 ### IDOR protection
 
 - Profile access now uses `/philemon/profile/<username>/` and checks the
