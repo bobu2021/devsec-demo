@@ -184,12 +184,27 @@ class RoleBasedAccessTests(TestCase):
         response = self.client.get(self.privileged_url)
         self.assertEqual(response.status_code, 200)
 
-    def test_privileged_user_can_view_other_user_profile(self):
+    def test_privileged_user_cannot_view_other_user_profile(self):
         self.client.login(username="staffuser", password="StrongPass123!")
         response = self.client.get(
             reverse("philemon_mutabazi:profile_detail", kwargs={"username": "normal"}),
         )
-        self.assertEqual(response.status_code, 200)
+        self.assertEqual(response.status_code, 404)
+
+    def test_privileged_user_cannot_modify_other_user_profile(self):
+        self.client.login(username="staffuser", password="StrongPass123!")
+        response = self.client.post(
+            reverse("philemon_mutabazi:profile_detail", kwargs={"username": "normal"}),
+            {
+                "username": "normal",
+                "email": "hijack@example.com",
+                "bio": "hijacked",
+                "date_of_birth": "2000-01-01",
+            },
+        )
+        self.assertEqual(response.status_code, 404)
+        self.normal_user.refresh_from_db()
+        self.assertNotEqual(self.normal_user.email, "hijack@example.com")
 
     def test_template_hides_privileged_link_for_normal_user(self):
         self.client.login(username="normal", password="StrongPass123!")

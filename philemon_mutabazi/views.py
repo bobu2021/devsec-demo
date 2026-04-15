@@ -77,7 +77,7 @@ class PrivilegedAccessMixin(LoginRequiredMixin, UserPassesTestMixin):
 def can_access_profile(request_user, target_user):
     return bool(
         request_user.is_authenticated
-        and (request_user == target_user or user_is_privileged(request_user))
+        and request_user == target_user
     )
 
 
@@ -109,7 +109,8 @@ class ProfileDetailView(View):
     template_name = "philemon_mutabazi/profile.html"
 
     def get_target_user(self, username):
-        target_user = get_object_or_404(User, username=username)
+        # Bind profile access to the currently authenticated user to prevent IDOR.
+        target_user = get_object_or_404(User, username=username, pk=self.request.user.pk)
         if not can_access_profile(self.request.user, target_user):
             raise Http404
         return target_user
@@ -122,7 +123,7 @@ class ProfileDetailView(View):
             "user_form": user_form,
             "profile_form": profile_form,
             "target_user": target_user,
-            "can_edit": target_user == request.user or user_is_privileged(request.user),
+            "can_edit": target_user == request.user,
         }
         return render(request, self.template_name, context)
 
@@ -139,7 +140,7 @@ class ProfileDetailView(View):
             "user_form": user_form,
             "profile_form": profile_form,
             "target_user": target_user,
-            "can_edit": target_user == request.user or user_is_privileged(request.user),
+            "can_edit": target_user == request.user,
         }
         return render(request, self.template_name, context)
 
