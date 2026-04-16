@@ -1,3 +1,5 @@
+import json
+
 from django.contrib.auth.models import Group, User
 from django.core.cache import cache
 from django.test import Client, TestCase
@@ -13,6 +15,11 @@ class CsrfClientMixin:
         response = self.client.get(url)
         self.assertEqual(response.status_code, 200)
         return response.cookies["csrftoken"].value
+
+
+class AuditLogMixin:
+    def parse_log_entry(self, output):
+        return json.loads(output.split(":", 2)[-1])
 
 
 class RegistrationTests(TestCase):
@@ -235,6 +242,109 @@ class OpenRedirectProtectionTests(TestCase):
             {"next": self.external_url},
         )
         self.assertRedirects(response, self.login_url, fetch_redirect_response=False)
+
+
+class AuditLoggingTests(AuditLogMixin, TestCase):
+    def setUp(self):
+        self.client = Client()
+        self.user = User.objects.create_user(
+            username="audituser",
+            email="audit@example.com",
+            password="StrongPass123!",
+        )
+
+    def test_registration_logs_security_event_without_password(self):
+        with self.assertLogs("philemon_mutabazi.audit", level="INFO") as captured:
+            response = self.client.post(
+                reverse("philemon_mutabazi:register"),
+                {
+                    "username": "newaudituser",
+                    "email": "newaudit@example.com",
+                    "password1": "StrongPass123!",
+                    "password2": "StrongPass123!",
+                },
+            )
+        self.assertEqual(response.status_code, 302)
+        event = self.parse_log_entry(captured.output[-1])
+        self.assertEqual(event["event"], "auth.registration")
+        self.assertEqual(event["username"], "newaudituser")
+        self.assertNotIn("StrongPass123!", captured.output[-1])
+
+    def test_login_success_and_failure_are_logged_without_passwords(self):
+        with self.assertLogs("philemon_mutabazi.audit", level="INFO") as captured:
+            failed_response = self.client.post(
+                reverse("philemon_mutabazi:login"),
+                {
+                    "username": "audituser",
+                    "password": "WrongPass123!",
+                },
+            )
+            success_response = self.client.post(
+                reverse("philemon_mutabazi:login"),
+                {
+                    "username": "audituser",
+                    "password": "StrongPass123!",
+                },
+            )
+        self.assertEqual(failed_response.status_code, 200)
+        self.assertEqual(success_response.status_code, 302)
+        failed_event = self.parse_log_entry(captured.output[0])
+        success_event = self.parse_log_entry(captured.output[1])
+        self.assertEqual(failed_event["event"], "auth.login_failed")
+        self.assertEqual(failed_event["username"], "audituser")
+        self.assertEqual(success_event["event"], "auth.login_succeeded")
+        self.assertEqual(success_event["username"], "audituser")
+        self.assertNotIn("WrongPass123!", "".join(captured.output))
+        self.assertNotIn("StrongPass123!", "".join(captured.output))
+
+    def test_logout_and_password_change_are_logged(self):
+        self.client.force_login(self.user)
+        with self.assertLogs("philemon_mutabazi.audit", level="INFO") as captured:
+            password_change_response = self.client.post(
+                reverse("philemon_mutabazi:password_change"),
+                {
+                    "old_password": "StrongPass123!",
+                    "new_password1": "UpdatedPass123!",
+                    "new_password2": "UpdatedPass123!",
+                },
+            )
+            logout_response = self.client.post(reverse("philemon_mutabazi:logout"))
+        self.assertEqual(password_change_response.status_code, 302)
+        self.assertEqual(logout_response.status_code, 302)
+        password_change_event = self.parse_log_entry(captured.output[0])
+        logout_event = self.parse_log_entry(captured.output[1])
+        self.assertEqual(password_change_event["event"], "auth.password_changed")
+        self.assertEqual(logout_event["event"], "auth.logout")
+        self.assertNotIn("UpdatedPass123!", "".join(captured.output))
+
+    def test_password_reset_request_logs_hashed_email_identifier(self):
+        with self.assertLogs("philemon_mutabazi.audit", level="INFO") as captured:
+            response = self.client.post(
+                reverse("philemon_mutabazi:password_reset"),
+                {"email": "audit@example.com"},
+            )
+        self.assertEqual(response.status_code, 302)
+        event = self.parse_log_entry(captured.output[-1])
+        self.assertEqual(event["event"], "auth.password_reset_requested")
+        self.assertIn("email_hash", event)
+        self.assertNotIn("audit@example.com", captured.output[-1])
+
+    def test_group_membership_changes_are_logged(self):
+        group = Group.objects.create(name="auditors")
+        with self.assertLogs("philemon_mutabazi.audit", level="INFO") as captured:
+            self.user.groups.add(group)
+        event = self.parse_log_entry(captured.output[-1])
+        self.assertEqual(event["event"], "auth.group_membership_changed")
+        self.assertEqual(event["action"], "post_add")
+        self.assertEqual(event["groups"], ["auditors"])
+
+    def test_privilege_flag_changes_are_logged(self):
+        with self.assertLogs("philemon_mutabazi.audit", level="INFO") as captured:
+            self.user.is_staff = True
+            self.user.save()
+        event = self.parse_log_entry(captured.output[-1])
+        self.assertEqual(event["event"], "auth.privilege_flags_changed")
+        self.assertEqual(event["changes"], {"is_staff": True})
 
 
 class LoginLogoutTests(TestCase):

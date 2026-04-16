@@ -32,6 +32,7 @@ from .forms import (
     UserRegistrationForm,
     UserUpdateForm,
 )
+from .audit import hash_identifier, log_security_event
 
 
 class SafeRedirectMixin:
@@ -105,6 +106,7 @@ class RegisterView(SafeRedirectMixin, View):
         form = UserRegistrationForm(request.POST)
         if form.is_valid():
             user = form.save()
+            log_security_event("auth.registration", request=request, user=user)
             messages.success(request, f"Account created for {user.username}.")
             return redirect(build_login_redirect_url(request))
         return render(request, self.template_name, self.get_context_data(form))
@@ -289,6 +291,7 @@ class UserPasswordChangeView(PasswordChangeView):
     success_url = reverse_lazy("philemon_mutabazi:profile")
 
     def form_valid(self, form):
+        log_security_event("auth.password_changed", request=self.request, user=self.request.user)
         messages.success(self.request, "Your password was changed successfully.")
         return super().form_valid(form)
 
@@ -314,6 +317,14 @@ class UserPasswordResetView(PasswordResetView):
             return redirect("philemon_mutabazi:profile")
         return super().get(request, *args, **kwargs)
 
+    def form_valid(self, form):
+        log_security_event(
+            "auth.password_reset_requested",
+            request=self.request,
+            email_hash=hash_identifier(form.cleaned_data.get("email")),
+        )
+        return super().form_valid(form)
+
 
 class UserPasswordResetDoneView(PasswordResetDoneView):
     """Confirmation view after password reset request."""
@@ -327,6 +338,7 @@ class UserPasswordResetConfirmView(PasswordResetConfirmView):
     success_url = reverse_lazy("philemon_mutabazi:password_reset_complete")
 
     def form_valid(self, form):
+        log_security_event("auth.password_reset_completed", request=self.request, user=form.user)
         messages.success(
             self.request,
             "Your password has been reset successfully. You can now log in with your new password."

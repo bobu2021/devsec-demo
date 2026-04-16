@@ -18,6 +18,15 @@ Authentication redirects now validate `next` targets before they are used:
 - Unsafe external destinations fall back to predictable internal pages such as the dashboard or login screen.
 - Safe internal navigation still works for legitimate users, including login success and post-registration navigation back into the application.
 - Tests cover both allowed internal redirects and rejected external redirect attempts.
+
+## Audit Logging
+
+Security-relevant account events are now logged through the `philemon_mutabazi.audit` logger:
+
+- Registration, login success, login failure, logout, password changes, and password reset flows emit structured audit events.
+- Privilege-sensitive changes such as group membership updates, direct permission changes, and `is_staff` or `is_superuser` changes are logged for accountability.
+- Logs include useful review fields like event name, user identity, request path, and client IP when available.
+- Sensitive data is intentionally excluded: raw passwords are never logged, and password reset requests log a hashed email identifier instead of the submitted address.
 ## Django security learning repository
 
 This repository is used for Django and web security assignments. You will work
