@@ -17,6 +17,7 @@ from django.conf import settings
 from django.urls import reverse_lazy
 from django.views import View
 from django.utils.decorators import method_decorator
+from django.views.decorators.csrf import csrf_protect
 
 from django.contrib.auth.models import User
 
@@ -31,6 +32,7 @@ from .forms import (
 )
 
 
+@method_decorator(csrf_protect, name="dispatch")
 class RegisterView(View):
     template_name = "philemon_mutabazi/register.html"
 
@@ -143,6 +145,7 @@ def can_access_profile(request_user, target_user):
     )
 
 
+@csrf_protect
 @login_required
 def logout_view(request):
     if request.method == "POST":
@@ -166,7 +169,7 @@ class ProfileRedirectView(View):
         return redirect("philemon_mutabazi:profile_detail", username=request.user.username)
 
 
-@method_decorator(login_required, name="dispatch")
+@method_decorator([login_required, csrf_protect], name="dispatch")
 class ProfileDetailView(View):
     template_name = "philemon_mutabazi/profile.html"
 

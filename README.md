@@ -1,9 +1,14 @@
 # devsec-demo
 ## CSRF Protection Audit
 
-All custom forms and POST endpoints in this project are protected by Django's CSRF middleware. No `@csrf_exempt` decorators are present, and all templates use `{% csrf_token %}`. No AJAX endpoints are present; if added, ensure CSRF tokens are sent in headers.
+Custom state-changing flows now use standard Django CSRF protection end to end:
 
-A test (`test_register_rejects_missing_csrf`) was added to confirm that POST requests without a CSRF token are rejected (HTTP 403), demonstrating that CSRF protection is enforced.
+- `RegisterView`, `ProfileDetailView`, and `logout_view` explicitly apply `csrf_protect`.
+- The custom templates for registration, profile updates, and logout submit a real `{% csrf_token %}`.
+- No `@csrf_exempt` shortcuts are used.
+- Validation uses `Client(enforce_csrf_checks=True)` so the tests exercise real middleware behavior instead of a mocked shortcut.
+
+This closes the gap where the project previously relied on a placeholder test instead of proving that a browser-style POST without a valid token is rejected.
 ## Django security learning repository
 
 This repository is used for Django and web security assignments. You will work

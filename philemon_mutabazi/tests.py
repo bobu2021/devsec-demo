@@ -7,22 +7,17 @@ from django.urls import reverse
 from .models import Profile
 
 
+class CsrfClientMixin:
+    def prime_csrf(self, url):
+        response = self.client.get(url)
+        self.assertEqual(response.status_code, 200)
+        return response.cookies["csrftoken"].value
+
+
 class RegistrationTests(TestCase):
     def setUp(self):
         self.client = Client()
         self.url = reverse("philemon_mutabazi:register")
-
-    def test_register_rejects_missing_csrf(self):
-        # Simulate a POST without CSRF token by disabling the client’s CSRF checks
-        from django.middleware.csrf import CsrfViewMiddleware
-        response = CsrfViewMiddleware().process_view(
-            self.client.request().wsgi_request,
-            None,
-            (),
-            {},
-        )
-        self.assertIsNotNone(response)
-        self.assertEqual(getattr(response, 'status_code', None), 403)
 
     def test_register_success(self):
         response = self.client.post(
@@ -50,6 +45,95 @@ class RegistrationTests(TestCase):
         )
         self.assertEqual(response.status_code, 200)
         self.assertContains(response, "A user with this email already exists.")
+
+
+class CustomWorkflowCsrfTests(CsrfClientMixin, TestCase):
+    def setUp(self):
+        self.client = Client(enforce_csrf_checks=True)
+        self.register_url = reverse("philemon_mutabazi:register")
+        self.logout_url = reverse("philemon_mutabazi:logout")
+        self.user = User.objects.create_user(
+            username="csrfuser",
+            email="csrf@example.com",
+            password="StrongPass123!",
+        )
+        self.profile_url = reverse(
+            "philemon_mutabazi:profile_detail",
+            kwargs={"username": self.user.username},
+        )
+
+    def test_register_rejects_post_without_csrf_token(self):
+        response = self.client.post(
+            self.register_url,
+            {
+                "username": "newuser",
+                "email": "new@example.com",
+                "password1": "StrongPass123!",
+                "password2": "StrongPass123!",
+            },
+        )
+        self.assertEqual(response.status_code, 403)
+
+    def test_register_accepts_post_with_valid_csrf_token(self):
+        csrf_token = self.prime_csrf(self.register_url)
+        response = self.client.post(
+            self.register_url,
+            {
+                "username": "newuser",
+                "email": "new@example.com",
+                "password1": "StrongPass123!",
+                "password2": "StrongPass123!",
+                "csrfmiddlewaretoken": csrf_token,
+            },
+        )
+        self.assertEqual(response.status_code, 302)
+        self.assertTrue(User.objects.filter(username="newuser").exists())
+
+    def test_profile_update_rejects_post_without_csrf_token(self):
+        self.client.force_login(self.user)
+        response = self.client.post(
+            self.profile_url,
+            {
+                "username": self.user.username,
+                "email": "updated@example.com",
+                "bio": "Updated bio",
+                "date_of_birth": "1999-01-15",
+            },
+        )
+        self.assertEqual(response.status_code, 403)
+
+    def test_profile_update_accepts_post_with_valid_csrf_token(self):
+        self.client.force_login(self.user)
+        csrf_token = self.prime_csrf(self.profile_url)
+        response = self.client.post(
+            self.profile_url,
+            {
+                "username": self.user.username,
+                "email": "updated@example.com",
+                "bio": "Updated bio",
+                "date_of_birth": "1999-01-15",
+                "csrfmiddlewaretoken": csrf_token,
+            },
+        )
+        self.assertEqual(response.status_code, 302)
+        self.user.refresh_from_db()
+        self.assertEqual(self.user.email, "updated@example.com")
+        self.assertTrue(Profile.objects.filter(user=self.user).exists())
+
+    def test_logout_rejects_post_without_csrf_token(self):
+        self.client.force_login(self.user)
+        response = self.client.post(self.logout_url)
+        self.assertEqual(response.status_code, 403)
+
+    def test_logout_accepts_post_with_valid_csrf_token(self):
+        self.client.force_login(self.user)
+        csrf_token = self.prime_csrf(self.logout_url)
+        response = self.client.post(
+            self.logout_url,
+            {"csrfmiddlewaretoken": csrf_token},
+        )
+        self.assertEqual(response.status_code, 302)
+        self.assertNotIn("_auth_user_id", self.client.session)
 
 
 class LoginLogoutTests(TestCase):
