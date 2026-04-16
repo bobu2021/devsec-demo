@@ -12,6 +12,11 @@ urlpatterns = [
     path("privileged/", views.PrivilegedDashboardView.as_view(), name="privileged_dashboard"),
     path("profile/", views.ProfileRedirectView.as_view(), name="profile"),
     path("profile/<str:username>/", views.ProfileDetailView.as_view(), name="profile_detail"),
+    path(
+        "profile/<str:username>/files/<str:file_kind>/",
+        views.ProfileFileDownloadView.as_view(),
+        name="profile_file_download",
+    ),
     path("password-change/", views.UserPasswordChangeView.as_view(), name="password_change"),
     path("password-reset/", views.UserPasswordResetView.as_view(), name="password_reset"),
     path("password-reset/done/", views.UserPasswordResetDoneView.as_view(), name="password_reset_done"),

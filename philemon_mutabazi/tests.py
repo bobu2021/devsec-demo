@@ -1,6 +1,9 @@
 import json
+from pathlib import Path
 
 from django.contrib.auth.models import Group, User
+from django.core.files.base import ContentFile
+from django.core.files.uploadedfile import SimpleUploadedFile
 from django.core.cache import cache
 from django.test import Client, TestCase
 from django.test.utils import override_settings
@@ -9,6 +12,8 @@ from django.utils.html import strip_tags
 from django.utils.http import urlencode
 
 from .models import Profile
+
+TEST_MEDIA_ROOT = Path(__file__).resolve().parent.parent / "test_media"
 
 
 class CsrfClientMixin:
@@ -390,6 +395,7 @@ class AccessControlTests(TestCase):
         self.assertEqual(response.status_code, 200)
 
 
+@override_settings(MEDIA_ROOT=TEST_MEDIA_ROOT)
 class PasswordAndProfileTests(TestCase):
     def setUp(self):
         self.client = Client()
@@ -470,6 +476,71 @@ class PasswordAndProfileTests(TestCase):
         self.assertEqual(response.status_code, 404)
         other_user.refresh_from_db()
         self.assertEqual(other_user.email, "other@example.com")
+
+    def test_profile_upload_accepts_valid_avatar_and_document(self):
+        avatar = SimpleUploadedFile(
+            "avatar.png",
+            b"\x89PNG\r\n\x1a\nvalid-avatar-content",
+            content_type="image/png",
+        )
+        document = SimpleUploadedFile(
+            "report.pdf",
+            b"%PDF-1.4\nvalid-pdf-content",
+            content_type="application/pdf",
+        )
+        response = self.client.post(
+            self.profile_url,
+            {
+                "username": "profileuser",
+                "email": "updated@example.com",
+                "bio": "Updated bio",
+                "date_of_birth": "1999-01-15",
+                "avatar": avatar,
+                "document": document,
+            },
+        )
+        self.assertEqual(response.status_code, 302)
+        self.user.refresh_from_db()
+        self.assertTrue(self.user.philemon_profile.avatar.name.endswith(".png"))
+        self.assertTrue(self.user.philemon_profile.document.name.endswith(".pdf"))
+
+    def test_profile_upload_rejects_invalid_avatar_content(self):
+        avatar = SimpleUploadedFile(
+            "avatar.png",
+            b"<script>alert('xss')</script>",
+            content_type="image/png",
+        )
+        response = self.client.post(
+            self.profile_url,
+            {
+                "username": "profileuser",
+                "email": "updated@example.com",
+                "bio": "Updated bio",
+                "date_of_birth": "1999-01-15",
+                "avatar": avatar,
+            },
+        )
+        self.assertEqual(response.status_code, 200)
+        self.assertContains(response, "Avatar content does not match an allowed image format.")
+
+    def test_profile_file_download_denies_cross_user_access(self):
+        other_user = User.objects.create_user(
+            username="otherfileuser",
+            email="otherfile@example.com",
+            password="StrongPass123!",
+        )
+        other_user.philemon_profile.document.save(
+            "report.pdf",
+            ContentFile(b"%PDF-1.4\nprivate-document"),
+            save=True,
+        )
+        response = self.client.get(
+            reverse(
+                "philemon_mutabazi:profile_file_download",
+                kwargs={"username": other_user.username, "file_kind": "document"},
+            ),
+        )
+        self.assertEqual(response.status_code, 404)
 
 
 class RoleBasedAccessTests(TestCase):

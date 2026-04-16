@@ -1,3 +1,5 @@
+import os
+
 from django.contrib import messages
 from django.contrib.auth import REDIRECT_FIELD_NAME, logout
 from django.contrib.auth.decorators import login_required
@@ -11,7 +13,7 @@ from django.contrib.auth.views import (
     PasswordResetCompleteView,
 )
 from django.core.cache import cache
-from django.http import Http404
+from django.http import FileResponse, Http404
 from django.shortcuts import resolve_url
 from django.shortcuts import get_object_or_404, redirect, render
 from django.conf import settings
@@ -269,7 +271,11 @@ class ProfileDetailView(View):
     def post(self, request, username):
         target_user = self.get_target_user(username)
         user_form = UserUpdateForm(request.POST, instance=target_user)
-        profile_form = ProfileUpdateForm(request.POST, instance=target_user.philemon_profile)
+        profile_form = ProfileUpdateForm(
+            request.POST,
+            request.FILES,
+            instance=target_user.philemon_profile,
+        )
         if user_form.is_valid() and profile_form.is_valid():
             user_form.save()
             profile_form.save()
@@ -282,6 +288,34 @@ class ProfileDetailView(View):
             "can_edit": target_user == request.user,
         }
         return render(request, self.template_name, context)
+
+
+@method_decorator(login_required, name="dispatch")
+class ProfileFileDownloadView(View):
+    file_fields = {
+        "avatar": "avatar",
+        "document": "document",
+    }
+
+    def get(self, request, username, file_kind):
+        target_user = get_object_or_404(User, username=username, pk=request.user.pk)
+        if not can_access_profile(request.user, target_user):
+            raise Http404
+
+        field_name = self.file_fields.get(file_kind)
+        if not field_name:
+            raise Http404
+
+        upload = getattr(target_user.philemon_profile, field_name, None)
+        if not upload:
+            raise Http404
+
+        return FileResponse(
+            upload.open("rb"),
+            as_attachment=True,
+            filename=os.path.basename(upload.name),
+            content_type="application/octet-stream",
+        )
 
 
 @method_decorator(login_required, name="dispatch")

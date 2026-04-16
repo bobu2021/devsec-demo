@@ -4,7 +4,7 @@
 
 {% block content %}
 <h1>Profile</h1>
-<form method="post">
+<form method="post" enctype="multipart/form-data">
     {% csrf_token %}
     <h2>Account</h2>
     {% for field in user_form %}
@@ -22,6 +22,22 @@
             {{ field.errors }}
         </div>
     {% endfor %}
+    {% if target_user.philemon_profile.avatar %}
+        <p>
+            Current avatar:
+            <a href="{% url 'philemon_mutabazi:profile_file_download' target_user.username 'avatar' %}">
+                Download avatar
+            </a>
+        </p>
+    {% endif %}
+    {% if target_user.philemon_profile.document %}
+        <p>
+            Current document:
+            <a href="{% url 'philemon_mutabazi:profile_file_download' target_user.username 'document' %}">
+                Download document
+            </a>
+        </p>
+    {% endif %}
     <button class="btn" type="submit">Save changes</button>
 </form>
 {% endblock %}

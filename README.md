@@ -35,6 +35,15 @@ User-controlled profile bio content is now treated as plain text:
 - Profile bio updates strip HTML tags before the content is stored.
 - This prevents stored markup such as `<script>` tags from being persisted and later rendered back into the profile workflow.
 - Legitimate profile text still works normally, while dangerous markup shortcuts are rejected instead of being preserved.
+
+## Secure Upload Handling
+
+Profile uploads now follow strict validation and private-storage rules:
+
+- Avatar uploads accept only JPEG or PNG files, validated by extension, size limit, and file signature.
+- Document uploads accept only PDF files, also validated by extension, size limit, and file signature.
+- Uploaded files are stored under a private media directory and are not exposed through public media URLs.
+- File access goes through owner-only download views so one user cannot fetch another user's uploaded content.
 ## Django security learning repository
 
 This repository is used for Django and web security assignments. You will work
