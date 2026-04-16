@@ -6,6 +6,9 @@
 <h1>Confirm logout</h1>
 <form method="post">
     {% csrf_token %}
+    {% if next_url %}
+        <input type="hidden" name="{{ redirect_field_name }}" value="{{ next_url }}">
+    {% endif %}
     <button class="btn" type="submit">Confirm logout</button>
 </form>
 {% endblock %}

@@ -1,5 +1,5 @@
 from django.contrib import messages
-from django.contrib.auth import logout
+from django.contrib.auth import REDIRECT_FIELD_NAME, logout
 from django.contrib.auth.decorators import login_required
 from django.contrib.auth.mixins import LoginRequiredMixin, UserPassesTestMixin
 from django.contrib.auth.views import (
@@ -12,9 +12,11 @@ from django.contrib.auth.views import (
 )
 from django.core.cache import cache
 from django.http import Http404
+from django.shortcuts import resolve_url
 from django.shortcuts import get_object_or_404, redirect, render
 from django.conf import settings
 from django.urls import reverse_lazy
+from django.utils.http import urlencode, url_has_allowed_host_and_scheme
 from django.views import View
 from django.utils.decorators import method_decorator
 from django.views.decorators.csrf import csrf_protect
@@ -32,28 +34,83 @@ from .forms import (
 )
 
 
+class SafeRedirectMixin:
+    redirect_field_name = REDIRECT_FIELD_NAME
+
+    def get_redirect_target(self):
+        redirect_to = (
+            self.request.POST.get(self.redirect_field_name)
+            or self.request.GET.get(self.redirect_field_name)
+            or ""
+        )
+        if redirect_to and url_has_allowed_host_and_scheme(
+            redirect_to,
+            allowed_hosts={self.request.get_host()},
+            require_https=self.request.is_secure(),
+        ):
+            return redirect_to
+        return ""
+
+    def get_safe_redirect_url(self, fallback_url):
+        return self.get_redirect_target() or resolve_url(fallback_url)
+
+    def get_redirect_context(self):
+        return {
+            "next_url": self.get_redirect_target(),
+            "redirect_field_name": self.redirect_field_name,
+        }
+
+
+def get_safe_redirect_target(request):
+    redirect_to = (
+        request.POST.get(REDIRECT_FIELD_NAME)
+        or request.GET.get(REDIRECT_FIELD_NAME)
+        or ""
+    )
+    if redirect_to and url_has_allowed_host_and_scheme(
+        redirect_to,
+        allowed_hosts={request.get_host()},
+        require_https=request.is_secure(),
+    ):
+        return redirect_to
+    return ""
+
+
+def build_login_redirect_url(request):
+    login_url = resolve_url("philemon_mutabazi:login")
+    redirect_to = get_safe_redirect_target(request)
+    if not redirect_to:
+        return login_url
+    return f"{login_url}?{urlencode({REDIRECT_FIELD_NAME: redirect_to})}"
+
+
 @method_decorator(csrf_protect, name="dispatch")
-class RegisterView(View):
+class RegisterView(SafeRedirectMixin, View):
     template_name = "philemon_mutabazi/register.html"
+
+    def get_context_data(self, form):
+        context = {"form": form}
+        context.update(self.get_redirect_context())
+        return context
 
     def get(self, request):
         if request.user.is_authenticated:
-            return redirect("philemon_mutabazi:dashboard")
+            return redirect(self.get_safe_redirect_url("philemon_mutabazi:dashboard"))
         form = UserRegistrationForm()
-        return render(request, self.template_name, {"form": form})
+        return render(request, self.template_name, self.get_context_data(form))
 
     def post(self, request):
         if request.user.is_authenticated:
-            return redirect("philemon_mutabazi:dashboard")
+            return redirect(self.get_safe_redirect_url("philemon_mutabazi:dashboard"))
         form = UserRegistrationForm(request.POST)
         if form.is_valid():
             user = form.save()
             messages.success(request, f"Account created for {user.username}.")
-            return redirect("philemon_mutabazi:login")
-        return render(request, self.template_name, {"form": form})
+            return redirect(build_login_redirect_url(request))
+        return render(request, self.template_name, self.get_context_data(form))
 
 
-class UserLoginView(LoginView):
+class UserLoginView(SafeRedirectMixin, LoginView):
     template_name = "philemon_mutabazi/login.html"
     authentication_form = UserLoginForm
     redirect_authenticated_user = True
@@ -109,8 +166,13 @@ class UserLoginView(LoginView):
         self._reset_login_protection(self._normalize_username())
         return super().form_valid(form)
 
+    def get_context_data(self, **kwargs):
+        context = super().get_context_data(**kwargs)
+        context.update(self.get_redirect_context())
+        return context
+
     def get_success_url(self):
-        return reverse_lazy("philemon_mutabazi:dashboard")
+        return self.get_safe_redirect_url("philemon_mutabazi:dashboard")
 
 
 def user_is_privileged(user):
@@ -151,8 +213,18 @@ def logout_view(request):
     if request.method == "POST":
         logout(request)
         messages.info(request, "You have been logged out successfully.")
+        redirect_to = get_safe_redirect_target(request)
+        if redirect_to:
+            return redirect(redirect_to)
         return redirect("philemon_mutabazi:login")
-    return render(request, "philemon_mutabazi/logout_confirm.html")
+    return render(
+        request,
+        "philemon_mutabazi/logout_confirm.html",
+        {
+            "next_url": get_safe_redirect_target(request),
+            "redirect_field_name": REDIRECT_FIELD_NAME,
+        },
+    )
 
 
 @method_decorator(login_required, name="dispatch")

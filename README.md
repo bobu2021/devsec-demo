@@ -9,6 +9,15 @@ Custom state-changing flows now use standard Django CSRF protection end to end:
 - Validation uses `Client(enforce_csrf_checks=True)` so the tests exercise real middleware behavior instead of a mocked shortcut.
 
 This closes the gap where the project previously relied on a placeholder test instead of proving that a browser-style POST without a valid token is rejected.
+
+## Redirect Safety Audit
+
+Authentication redirects now validate `next` targets before they are used:
+
+- Custom login, registration, and logout workflows accept only local redirect destinations validated with Django's safe-host checks.
+- Unsafe external destinations fall back to predictable internal pages such as the dashboard or login screen.
+- Safe internal navigation still works for legitimate users, including login success and post-registration navigation back into the application.
+- Tests cover both allowed internal redirects and rejected external redirect attempts.
 ## Django security learning repository
 
 This repository is used for Django and web security assignments. You will work

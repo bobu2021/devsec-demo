@@ -3,6 +3,7 @@ from django.core.cache import cache
 from django.test import Client, TestCase
 from django.test.utils import override_settings
 from django.urls import reverse
+from django.utils.http import urlencode
 
 from .models import Profile
 
@@ -134,6 +135,106 @@ class CustomWorkflowCsrfTests(CsrfClientMixin, TestCase):
         )
         self.assertEqual(response.status_code, 302)
         self.assertNotIn("_auth_user_id", self.client.session)
+
+
+class OpenRedirectProtectionTests(TestCase):
+    def setUp(self):
+        self.client = Client()
+        self.user = User.objects.create_user(
+            username="redirectuser",
+            email="redirect@example.com",
+            password="StrongPass123!",
+        )
+        self.login_url = reverse("philemon_mutabazi:login")
+        self.logout_url = reverse("philemon_mutabazi:logout")
+        self.register_url = reverse("philemon_mutabazi:register")
+        self.dashboard_url = reverse("philemon_mutabazi:dashboard")
+        self.profile_url = reverse(
+            "philemon_mutabazi:profile_detail",
+            kwargs={"username": self.user.username},
+        )
+        self.external_url = "https://evil.example/phish"
+
+    def test_login_redirects_to_safe_internal_next(self):
+        response = self.client.post(
+            self.login_url,
+            {
+                "username": "redirectuser",
+                "password": "StrongPass123!",
+                "next": self.profile_url,
+            },
+        )
+        self.assertRedirects(response, self.profile_url, fetch_redirect_response=False)
+
+    def test_login_rejects_external_next(self):
+        response = self.client.post(
+            self.login_url,
+            {
+                "username": "redirectuser",
+                "password": "StrongPass123!",
+                "next": self.external_url,
+            },
+        )
+        self.assertRedirects(response, self.dashboard_url, fetch_redirect_response=False)
+
+    def test_authenticated_login_view_rejects_external_next(self):
+        self.client.login(username="redirectuser", password="StrongPass123!")
+        response = self.client.get(self.login_url, {"next": self.external_url})
+        self.assertRedirects(response, self.dashboard_url, fetch_redirect_response=False)
+
+    def test_authenticated_register_view_redirects_to_safe_internal_next(self):
+        self.client.login(username="redirectuser", password="StrongPass123!")
+        response = self.client.get(self.register_url, {"next": self.profile_url})
+        self.assertRedirects(response, self.profile_url, fetch_redirect_response=False)
+
+    def test_authenticated_register_view_rejects_external_next(self):
+        self.client.login(username="redirectuser", password="StrongPass123!")
+        response = self.client.get(self.register_url, {"next": self.external_url})
+        self.assertRedirects(response, self.dashboard_url, fetch_redirect_response=False)
+
+    def test_registration_preserves_safe_internal_next_for_login(self):
+        safe_next = reverse("philemon_mutabazi:password_reset")
+        response = self.client.post(
+            self.register_url,
+            {
+                "username": "newredirectuser",
+                "email": "newredirect@example.com",
+                "password1": "StrongPass123!",
+                "password2": "StrongPass123!",
+                "next": safe_next,
+            },
+        )
+        expected_url = f"{self.login_url}?{urlencode({'next': safe_next})}"
+        self.assertRedirects(response, expected_url, fetch_redirect_response=False)
+
+    def test_registration_rejects_external_next_for_login(self):
+        response = self.client.post(
+            self.register_url,
+            {
+                "username": "newredirectuser",
+                "email": "newredirect@example.com",
+                "password1": "StrongPass123!",
+                "password2": "StrongPass123!",
+                "next": self.external_url,
+            },
+        )
+        self.assertRedirects(response, self.login_url, fetch_redirect_response=False)
+
+    def test_logout_redirects_to_safe_internal_next(self):
+        self.client.login(username="redirectuser", password="StrongPass123!")
+        response = self.client.post(
+            self.logout_url,
+            {"next": self.register_url},
+        )
+        self.assertRedirects(response, self.register_url, fetch_redirect_response=False)
+
+    def test_logout_rejects_external_next(self):
+        self.client.login(username="redirectuser", password="StrongPass123!")
+        response = self.client.post(
+            self.logout_url,
+            {"next": self.external_url},
+        )
+        self.assertRedirects(response, self.login_url, fetch_redirect_response=False)
 
 
 class LoginLogoutTests(TestCase):
