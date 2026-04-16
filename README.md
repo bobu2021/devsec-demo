@@ -1,4 +1,9 @@
 # devsec-demo
+## CSRF Protection Audit
+
+All custom forms and POST endpoints in this project are protected by Django's CSRF middleware. No `@csrf_exempt` decorators are present, and all templates use `{% csrf_token %}`. No AJAX endpoints are present; if added, ensure CSRF tokens are sent in headers.
+
+A test (`test_register_rejects_missing_csrf`) was added to confirm that POST requests without a CSRF token are rejected (HTTP 403), demonstrating that CSRF protection is enforced.
 ## Django security learning repository
 
 This repository is used for Django and web security assignments. You will work

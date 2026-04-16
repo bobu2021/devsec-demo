@@ -12,6 +12,18 @@ class RegistrationTests(TestCase):
         self.client = Client()
         self.url = reverse("philemon_mutabazi:register")
 
+    def test_register_rejects_missing_csrf(self):
+        # Simulate a POST without CSRF token by disabling the client’s CSRF checks
+        from django.middleware.csrf import CsrfViewMiddleware
+        response = CsrfViewMiddleware().process_view(
+            self.client.request().wsgi_request,
+            None,
+            (),
+            {},
+        )
+        self.assertIsNotNone(response)
+        self.assertEqual(getattr(response, 'status_code', None), 403)
+
     def test_register_success(self):
         response = self.client.post(
             self.url,
