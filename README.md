@@ -27,6 +27,14 @@ Security-relevant account events are now logged through the `philemon_mutabazi.a
 - Privilege-sensitive changes such as group membership updates, direct permission changes, and `is_staff` or `is_superuser` changes are logged for accountability.
 - Logs include useful review fields like event name, user identity, request path, and client IP when available.
 - Sensitive data is intentionally excluded: raw passwords are never logged, and password reset requests log a hashed email identifier instead of the submitted address.
+
+## Stored XSS Protection
+
+User-controlled profile bio content is now treated as plain text:
+
+- Profile bio updates strip HTML tags before the content is stored.
+- This prevents stored markup such as `<script>` tags from being persisted and later rendered back into the profile workflow.
+- Legitimate profile text still works normally, while dangerous markup shortcuts are rejected instead of being preserved.
 ## Django security learning repository
 
 This repository is used for Django and web security assignments. You will work

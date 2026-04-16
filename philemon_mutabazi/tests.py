@@ -5,6 +5,7 @@ from django.core.cache import cache
 from django.test import Client, TestCase
 from django.test.utils import override_settings
 from django.urls import reverse
+from django.utils.html import strip_tags
 from django.utils.http import urlencode
 
 from .models import Profile
@@ -430,6 +431,26 @@ class PasswordAndProfileTests(TestCase):
         self.user.refresh_from_db()
         self.assertEqual(self.user.email, "updated@example.com")
         self.assertTrue(Profile.objects.filter(user=self.user).exists())
+
+    def test_profile_update_strips_unsafe_html_from_bio(self):
+        malicious_bio = '<script>alert("owned")</script><b>Hello</b>'
+        response = self.client.post(
+            self.profile_url,
+            {
+                "username": "profileuser",
+                "email": "updated@example.com",
+                "bio": malicious_bio,
+                "date_of_birth": "1999-01-15",
+            },
+        )
+        self.assertEqual(response.status_code, 302)
+        self.user.refresh_from_db()
+        self.assertEqual(self.user.philemon_profile.bio, strip_tags(malicious_bio))
+
+        profile_response = self.client.get(self.profile_url)
+        self.assertEqual(profile_response.status_code, 200)
+        self.assertNotContains(profile_response, "<script>alert(\"owned\")</script>", html=False)
+        self.assertContains(profile_response, 'alert(&quot;owned&quot;)Hello', html=False)
 
     def test_profile_update_denies_cross_user_access(self):
         other_user = User.objects.create_user(

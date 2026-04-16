@@ -7,6 +7,7 @@ from django.contrib.auth.forms import (
     UserCreationForm,
 )
 from django.contrib.auth.models import User
+from django.utils.html import strip_tags
 
 from .models import Profile
 
@@ -53,6 +54,12 @@ class ProfileUpdateForm(forms.ModelForm):
     class Meta:
         model = Profile
         fields = ("bio", "date_of_birth")
+
+    def clean_bio(self):
+        bio = self.cleaned_data.get("bio", "")
+        if not bio:
+            return bio
+        return strip_tags(bio)
 
 
 class UserPasswordResetForm(PasswordResetForm):
